@@ -1,0 +1,58 @@
+from flask import Flask, request
+from docker import Client
+import jinja2, os
+
+templateLoader = jinja2.FileSystemLoader( searchpath=os.path.dirname(os.path.abspath(__file__)) )
+templateEnv = jinja2.Environment( loader=templateLoader )
+
+app = Flask(__name__)
+
+def make_template(hosts, DOCKER_IP):
+    template = templateEnv.get_template( 'nginx.conf.j2' )
+    return template.render( hosts = hosts, DOCKER_IP = DOCKER_IP )
+
+def write_file(filename, data, path = '/etc/nginx/conf.d'):
+    if os.path.exists(path):
+        with open(os.path.join(path, filename), 'w') as conffile:
+            conffile.write(data)
+            conffile.close()
+            return True
+    return False
+
+
+def kill():
+    c = Client(base_url='unix://var/run/docker.sock')
+    for container in c.containers():
+        if "/nginx" in container['Names']:
+            c.kill(container['Id'], 'SIGHUP')
+
+@app.route('/', methods = [ 'POST', 'GET' ])
+def index():
+    if request.method == 'POST':
+        if 'DOCKER_IP' in request.json:
+            DOCKER_IP = request.json['DOCKER_IP']
+        else:
+            DOCKER_IP = request.remote_addr
+
+        if 'SERVER_NAME' in request.json: 
+            SERVER_NAME = request.json['SERVER_NAME']
+        else:
+            return 'No SERVER_NAME especified'
+        
+        vhosts = dict()
+        if 'data' in request.json:
+            data = request.json['data']
+
+            for d in data:
+                if d['VIRTUAL_HOST'] not in vhosts: vhosts[d['VIRTUAL_HOST']] = []
+                vhosts[d['VIRTUAL_HOST']].append(d['PORT'])
+
+            data = make_template(vhosts, DOCKER_IP)
+            print data
+            write_file('%s.conf' % SERVER_NAME, data)
+
+    return 'No valid data'
+
+
+if __name__ == '__main__':
+    app.run(host = '0.0.0.0', debug = True)
