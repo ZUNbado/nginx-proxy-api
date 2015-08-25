@@ -5,7 +5,7 @@ import jinja2, os
 templateLoader = jinja2.FileSystemLoader( searchpath=os.path.dirname(os.path.abspath(__file__)) )
 templateEnv = jinja2.Environment( loader=templateLoader )
 
-DOCKER_SOCKET = os.environ['DOCKER_SOCKET'] if 'DOCKER_SOCKET' in os.environ else 'unix://var/run/docker.sock'
+DOCKER_SOCKET = os.environ['DOCKER_SOCKET'] if 'DOCKER_SOCKET' in os.environ else 'unix://tmp/docker.sock'
 NGINX_DIR = os.environ['NGINX_DIR'] if 'NGINX_DIR' in os.environ else '/etc/nginx/conf.d'
 NGINX_CONTAINER = os.environ['NGINX_CONTAINER'] if 'NGINX_CONTAINER' in os.environ else 'nginx'
 

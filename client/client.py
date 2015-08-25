@@ -3,10 +3,10 @@ from pyroute2 import IPDB
 
 
 if 'PROXY_API' in os.environ:
-    PROXY_API = os.environ['PROXY_API']
+    API_HOST = os.environ['PROXY_API']
 else:
     ip = IPDB()
-    PROXY_API = ip.routes['default']['gateway']
+    API_HOST = ip.routes['default']['gateway']
 
 API_SCHEMA = 'http'
 API_PORT = '5000'
