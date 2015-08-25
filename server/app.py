@@ -5,6 +5,10 @@ import jinja2, os
 templateLoader = jinja2.FileSystemLoader( searchpath=os.path.dirname(os.path.abspath(__file__)) )
 templateEnv = jinja2.Environment( loader=templateLoader )
 
+DOCKER_SOCKET = os.environ['DOCKER_SOCKET'] if 'DOCKER_SOCKET' in os.environ else 'unix://var/run/docker.sock'
+NGINX_DIR = os.environ['NGINX_DIR'] if 'NGINX_DIR' in os.environ else '/etc/nginx/conf.d'
+NGINX_CONTAINER = os.environ['NGINX_CONTAINER'] if 'NGINX_CONTAINER' in os.environ else 'nginx'
+
 app = Flask(__name__)
 
 def make_template(hosts, DOCKER_IP):
@@ -19,11 +23,10 @@ def write_file(filename, data, path = '/etc/nginx/conf.d'):
             return True
     return False
 
-
 def kill():
     c = Client(base_url='unix://var/run/docker.sock')
     for container in c.containers():
-        if "/nginx" in container['Names']:
+        if "/%s" % NGINX_CONTAINER in container['Names']:
             c.kill(container['Id'], 'SIGHUP')
 
 @app.route('/', methods = [ 'POST', 'GET' ])
@@ -51,6 +54,7 @@ def index():
             print data
             write_file('%s.conf' % SERVER_NAME, data)
 
+    print vars(request)
     return 'No valid data'
 
 
