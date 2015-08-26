@@ -51,10 +51,9 @@ def index():
                 vhosts[d['VIRTUAL_HOST']].append(d['PORT'])
 
             data = make_template(vhosts, DOCKER_IP)
-            print data
             write_file('%s.conf' % SERVER_NAME, data)
+            kill()
 
-    print vars(request)
     return 'No valid data'
 
 
