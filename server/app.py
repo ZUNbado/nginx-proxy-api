@@ -1,6 +1,6 @@
 from flask import Flask, request
 from docker import Client
-import jinja2, os
+import jinja2, os, json
 
 templateLoader = jinja2.FileSystemLoader( searchpath=os.path.dirname(os.path.abspath(__file__)) )
 templateEnv = jinja2.Environment( loader=templateLoader )
@@ -15,7 +15,7 @@ def make_template(hosts, DOCKER_IP):
     template = templateEnv.get_template( 'nginx.conf.j2' )
     return template.render( hosts = hosts, DOCKER_IP = DOCKER_IP )
 
-def write_file(filename, data, path = '/etc/nginx/conf.d'):
+def write_file(filename, data, path = NGINX_DIR):
     if os.path.exists(path):
         with open(os.path.join(path, filename), 'w') as conffile:
             conffile.write(data)
@@ -23,8 +23,14 @@ def write_file(filename, data, path = '/etc/nginx/conf.d'):
             return True
     return False
 
+def read_file(filename):
+    if os.path.isfile(filename):
+        with open(filename, 'r') as data:
+            return json.loads(data.read())
+    return dict()
+
 def kill():
-    c = Client(base_url='unix://var/run/docker.sock')
+    c = Client(base_url=DOCKER_SOCKET)
     for container in c.containers():
         if "/%s" % NGINX_CONTAINER in container['Names']:
             c.kill(container['Id'], 'SIGHUP')
@@ -42,14 +48,15 @@ def index():
         else:
             return 'No SERVER_NAME especified'
         
-        vhosts = dict()
+        vhosts = read_file('/tmp/vhosts.json')
         if 'data' in request.json:
             data = request.json['data']
 
             for d in data:
                 if d['VIRTUAL_HOST'] not in vhosts: vhosts[d['VIRTUAL_HOST']] = []
                 vhosts[d['VIRTUAL_HOST']].append(d['PORT'])
-
+            
+            write_file('vhosts.json', json.dumps(vhosts), '/tmp')
             data = make_template(vhosts, DOCKER_IP)
             print data
             write_file('%s.conf' % SERVER_NAME, data)
