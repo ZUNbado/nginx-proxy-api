@@ -2,17 +2,17 @@ import requests, os, json
 from pyroute2 import IPDB
 
 
-if 'PROXY_API' in os.environ:
-    API_HOST = os.environ['PROXY_API']
+if 'API_HOST' in os.environ:
+    API_HOST = os.environ['API_HOST']
 else:
     ip = IPDB()
     API_HOST = ip.routes['default']['gateway']
 
-API_SCHEMA = 'http'
-API_PORT = '5000'
-API_PATH = ''
+API_SCHEMA = os.environ['API_SCHEMA']
+API_PORT = os.environ['API_PORT']
+API_PATH = os.environ['API_PATH']
 
-API_URL = '%s://%s:%s/%s' % (API_SCHEMA, API_HOST, API_PORT, API_PATH)
+API_URL = '%s%s:%s%s' % (API_SCHEMA, API_HOST, API_PORT, API_PATH)
 
 data = dict()
 for i in [ 'SERVER_NAME', 'DOCKER_IP' ]:
@@ -34,4 +34,7 @@ data['data'] = [
 {{end}}
 ]
 
-requests.post(API_URL, json = data)
+try:
+    requests.post(API_URL, json = data)
+except:
+    pass

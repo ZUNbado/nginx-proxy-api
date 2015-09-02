@@ -5,19 +5,20 @@ import jinja2, os, json
 templateLoader = jinja2.FileSystemLoader( searchpath=os.path.dirname(os.path.abspath(__file__)) )
 templateEnv = jinja2.Environment( loader=templateLoader )
 
-DOCKER_SOCKET = os.environ['DOCKER_SOCKET'] if 'DOCKER_SOCKET' in os.environ else 'unix://tmp/docker.sock'
-NGINX_DIR = os.environ['NGINX_DIR'] if 'NGINX_DIR' in os.environ else '/etc/nginx/conf.d'
-NGINX_CONTAINER = os.environ['NGINX_CONTAINER'] if 'NGINX_CONTAINER' in os.environ else 'nginx'
+DOCKER_SOCKET = os.environ['DOCKER_SOCKET']
+NGINX_CONF = os.environ['NGINX_CONF']
+NGINX_CONTAINER = os.environ['NGINX_CONTAINER']
+TEMP_FILE = '/tmp/vhosts.json'
 
 app = Flask(__name__)
 
-def make_template(hosts, DOCKER_IP):
+def make_template(hosts):
     template = templateEnv.get_template( 'nginx.conf.j2' )
-    return template.render( hosts = hosts, DOCKER_IP = DOCKER_IP )
+    return template.render( hosts = hosts )
 
-def write_file(filename, data, path = NGINX_DIR):
-    if os.path.exists(path):
-        with open(os.path.join(path, filename), 'w') as conffile:
+def write_file(filename, data):
+    if os.path.exists(os.path.dirname(filename)):
+        with open(filename, 'w') as conffile:
             conffile.write(data)
             conffile.close()
             return True
@@ -26,8 +27,8 @@ def write_file(filename, data, path = NGINX_DIR):
 def read_file(filename):
     if os.path.isfile(filename):
         with open(filename, 'r') as data:
-            return json.loads(data.read())
-    return dict()
+            return data.read()
+    return ''
 
 def kill():
     c = Client(base_url=DOCKER_SOCKET)
@@ -48,17 +49,22 @@ def index():
         else:
             return 'No SERVER_NAME especified'
         
-        vhosts = read_file('/tmp/vhosts.json')
         if 'data' in request.json:
+            vhosts = json.loads(read_file( TEMP_FILE ))
             data = request.json['data']
 
+            vhosts_server = dict()
             for d in data:
-                if d['VIRTUAL_HOST'] not in vhosts: vhosts[d['VIRTUAL_HOST']] = []
-                vhosts[d['VIRTUAL_HOST']].append(d['PORT'])
+                if d['VIRTUAL_HOST'] not in vhosts_server: vhosts_server[d['VIRTUAL_HOST']] = []
+                vhosts_server[d['VIRTUAL_HOST']].append(d['PORT'])
+
+            for vhost, ports in vhosts_server.items():
+                if vhost not in vhosts: vhosts[vhost] = {}
+                vhosts[vhost][SERVER_NAME] = { 'IP' : DOCKER_IP, 'PORTS' : ports }
             
-            write_file('vhosts.json', json.dumps(vhosts), '/tmp')
-            data = make_template(vhosts, DOCKER_IP)
-            write_file('%s.conf' % SERVER_NAME, data)
+            write_file(TEMP_FILE, json.dumps(vhosts))
+            data = make_template(vhosts)
+            write_file(NGINX_CONF, data)
             kill()
 
     return 'No valid data'
