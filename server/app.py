@@ -3,7 +3,7 @@ from docker import Client
 import os, json
 
 DOCKER_SOCKET = os.environ.get('DOCKER_SOCKET', 'unix://var/run/docker.sock')
-NGINX_CONF = os.environ.get('NGINX_CONF', '/etc/nginx/conf.d')
+NGINX_CONF = os.environ.get('NGINX_CONF', '/etc/nginx/conf.d/api.conf')
 NGINX_CONTAINER = os.environ.get('NGINX_CONTAINER', 'nginx' )
 API_PORT = os.environ.get('API_PORT', 5555)
 VHOSTS = '/tmp/vhosts.json'

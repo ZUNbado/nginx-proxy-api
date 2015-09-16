@@ -1,2 +1,2 @@
 FROM python:2-onbuild
-CMD [ "python", "app.py" ]
+CMD [ "python", "client.py" ]
