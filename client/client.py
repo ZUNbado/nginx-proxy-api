@@ -32,4 +32,7 @@ if __name__ == "__main__":
         event = json.loads(e)
         if event['status'] in [ 'start', 'stop' ]:
             data['vhosts'] = get_vhosts()
-            requests.post(API_URL, json = data)
+            try:
+                requests.post(API_URL, json = data)
+            except:
+                pass
