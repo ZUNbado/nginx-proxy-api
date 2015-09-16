@@ -1,7 +1,9 @@
-{% for host, ports in hosts.items() %}
+{% for host, backends in vhosts.items() %}
 upstream {{ host }} {
+    {% for ip, ports in backends.items() %}
     {% for port in ports %}
-    server {{ DOCKER_IP }}:{{ port }};
+    server {{ ip }}:{{ port }};
+    {% endfor %}
     {% endfor %}
 }
 

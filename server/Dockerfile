@@ -1,3 +1,3 @@
 FROM python:2-onbuild
-EXPOSE 5000
+EXPOSE 5555
 CMD [ "python", "app.py" ]

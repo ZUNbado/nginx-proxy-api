@@ -1,35 +1,29 @@
-from flask import Flask, request
+from flask import Flask, request, render_template
 from docker import Client
-import jinja2, os, json
+import os, json
 
-templateLoader = jinja2.FileSystemLoader( searchpath=os.path.dirname(os.path.abspath(__file__)) )
-templateEnv = jinja2.Environment( loader=templateLoader )
-
-DOCKER_SOCKET = os.environ['DOCKER_SOCKET'] if 'DOCKER_SOCKET' in os.environ else 'unix://tmp/docker.sock'
-NGINX_DIR = os.environ['NGINX_DIR'] if 'NGINX_DIR' in os.environ else '/etc/nginx/conf.d'
-NGINX_CONTAINER = os.environ['NGINX_CONTAINER'] if 'NGINX_CONTAINER' in os.environ else 'nginx'
+DOCKER_SOCKET = os.environ.get('DOCKER_SOCKET', 'unix://var/run/docker.sock')
+NGINX_CONF = os.environ.get('NGINX_CONF', '/etc/nginx/conf.d')
+NGINX_CONTAINER = os.environ.get('NGINX_CONTAINER', 'nginx' )
+API_PORT = os.environ.get('API_PORT', 5555)
+VHOSTS = '/tmp/vhosts.json'
 
 app = Flask(__name__)
 
-def make_template(hosts, DOCKER_IP):
-    template = templateEnv.get_template( 'nginx.conf.j2' )
-    return template.render( hosts = hosts, DOCKER_IP = DOCKER_IP )
-
-def write_file(filename, data, path = NGINX_DIR):
-    if os.path.exists(path):
-        with open(os.path.join(path, filename), 'w') as conffile:
-            conffile.write(data)
-            conffile.close()
-            return True
+def write_file(filename, data):
+    with open(filename, 'w') as wfile:
+        wfile.write(data)
+        wfile.close()
+        return True
     return False
 
 def read_file(filename):
     if os.path.isfile(filename):
         with open(filename, 'r') as data:
-            return json.loads(data.read())
-    return dict()
+            return data.read()
+    return None
 
-def kill():
+def reload_nginx():
     c = Client(base_url=DOCKER_SOCKET)
     for container in c.containers():
         if "/%s" % NGINX_CONTAINER in container['Names']:
@@ -39,31 +33,35 @@ def kill():
 def index():
     if request.method == 'POST':
         if 'DOCKER_IP' in request.json:
-            DOCKER_IP = request.json['DOCKER_IP']
+            SERVER = request.json['DOCKER_IP']
         else:
-            DOCKER_IP = request.remote_addr
+            SERVER = request.remote_addr
 
-        if 'SERVER_NAME' in request.json: 
-            SERVER_NAME = request.json['SERVER_NAME']
-        else:
-            return 'No SERVER_NAME especified'
+        data = read_file(VHOSTS)
+        vhosts = json.loads(data) if data else dict()
+        post = request.json['vhosts']
+        for vhost, backends in vhosts.items():
+            if vhost in post:
+                for backend, ports in backends.items():
+                    if backend in post[vhost]:
+                        vhosts[vhost][backend] = post.pop(vhost)
+            else:
+                if SERVER in backends:
+                    vhosts[vhost].pop(SERVER)
+
+            if len(vhosts[vhost]) == 0:
+                vhosts.pop(vhost)
+
+        for vhost, ports in post.items():
+            if vhost not in vhosts: vhosts[vhost] = dict()
+            vhosts[vhost][SERVER] = ports
         
-        vhosts = read_file('/tmp/vhosts.json')
-        if 'data' in request.json:
-            data = request.json['data']
-
-            for d in data:
-                if d['VIRTUAL_HOST'] not in vhosts: vhosts[d['VIRTUAL_HOST']] = []
-                vhosts[d['VIRTUAL_HOST']].append(d['PORT'])
-            
-            write_file('vhosts.json', json.dumps(vhosts), '/tmp')
-            data = make_template(vhosts, DOCKER_IP)
-            print data
-            write_file('%s.conf' % SERVER_NAME, data)
-
-    print vars(request)
+        template = render_template('nginx.conf.j2', vhosts = vhosts)
+        write_file(NGINX_CONF, template)
+        write_file(VHOSTS, json.dumps(vhosts))
+        reload_nginx()
+        return ''
     return 'No valid data'
 
-
 if __name__ == '__main__':
-    app.run(host = '0.0.0.0', debug = True)
+    app.run(host = '0.0.0.0', debug = True, port = API_PORT)
