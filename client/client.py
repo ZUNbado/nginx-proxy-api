@@ -30,7 +30,7 @@ if __name__ == "__main__":
     c = Client(base_url=DOCKER_SOCKET)
     for e in c.events():
         event = json.loads(e)
-        if event['status'] in [ 'start', 'stop' ]:
+        if event['status'] in [ 'start', 'stop', 'die' ]:
             data['vhosts'] = get_vhosts()
             try:
                 requests.post(API_URL, json = data)

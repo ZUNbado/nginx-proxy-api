@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template
 from docker import Client
-import os, json
+import os, json, copy
 
 DOCKER_SOCKET = os.environ.get('DOCKER_SOCKET', 'unix://var/run/docker.sock')
 NGINX_CONF = os.environ.get('NGINX_CONF', '/etc/nginx/conf.d/api.conf')
@@ -37,28 +37,33 @@ def index():
         else:
             SERVER = request.remote_addr
 
+        # json file data
         data = read_file(VHOSTS)
         vhosts = json.loads(data) if data else dict()
+        vhosts_copy = copy.copy(vhosts)
+
+        # request data
         post = request.json['vhosts']
+
         for vhost, backends in vhosts.items():
             if vhost in post:
                 for backend, ports in backends.items():
                     if backend in post[vhost]:
-                        vhosts[vhost][backend] = post.pop(vhost)
+                        vhosts_copy[vhost][backend] = post.pop(vhost)
             else:
                 if SERVER in backends:
-                    vhosts[vhost].pop(SERVER)
+                    vhosts_copy[vhost].pop(SERVER)
 
             if len(vhosts[vhost]) == 0:
-                vhosts.pop(vhost)
+                vhosts_copy.pop(vhost)
 
         for vhost, ports in post.items():
-            if vhost not in vhosts: vhosts[vhost] = dict()
-            vhosts[vhost][SERVER] = ports
-        
-        template = render_template('nginx.conf.j2', vhosts = vhosts)
+            if vhost not in vhosts_copy: vhosts_copy[vhost] = dict()
+            vhosts_copy[vhost][SERVER] = ports
+
+        template = render_template('nginx.conf.j2', vhosts = vhosts_copy)
         write_file(NGINX_CONF, template)
-        write_file(VHOSTS, json.dumps(vhosts))
+        write_file(VHOSTS, json.dumps(vhosts_copy))
         reload_nginx()
         return ''
     return 'No valid data'
