@@ -21,9 +21,17 @@ def get_vhosts():
             if '=' in env:
                 item, value = env.split('=', 2)
                 if item == 'VIRTUAL_HOST':
-                    if value not in vhosts: vhosts[value] = []
-                    port = container['Ports'][0]['PublicPort']
-                    vhosts[value].append(port)
+                    if ':' in value:
+                        vhost, port = value.split(':', 2)
+                    else:
+                        vhost = value
+                        if 'Ports' in container and len(container) > 0 and 'PublicPort' in container['Ports'][0]:
+                            port = container['Ports'][0]['PublicPort']
+                        else:
+                            port = None
+                    if port:
+                        if vhost not in vhosts: vhosts[vhost] = []
+                        vhosts[vhost].append(port)
     return vhosts
 
 if __name__ == "__main__":
@@ -34,5 +42,5 @@ if __name__ == "__main__":
             data['vhosts'] = get_vhosts()
             try:
                 requests.post(API_URL, json = data)
-            except:
-                pass
+            except Exception, e:
+                print e.message
